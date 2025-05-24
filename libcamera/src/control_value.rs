@@ -1,4 +1,4 @@
-use std::ptr::NonNull;
+use std::{fmt::Display, ptr::NonNull};
 
 use libcamera_sys::*;
 use smallvec::{smallvec, SmallVec};
@@ -36,6 +36,38 @@ pub enum ControlValue {
     Size(SmallVec<[Size; 1]>),
     // bad gues
     Point(SmallVec<[Point; 1]>),
+}
+
+impl Display for ControlValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            ControlValue::None => "None",
+            ControlValue::Bool(small_vec) => "Bool",
+            ControlValue::Byte(small_vec) => "Byte",
+            ControlValue::Int32(small_vec) => "Int32",
+            ControlValue::Int64(small_vec) => "Int64",
+            ControlValue::Float(small_vec) => "Float",
+            ControlValue::String(_) => "String",
+            ControlValue::Rectangle(small_vec) => "Rectangle",
+            ControlValue::Size(small_vec) => "Size",
+        };
+        if f.alternate() {
+            let value: Box<dyn std::fmt::Debug> = match self {
+                ControlValue::None => Box::new(""),
+                ControlValue::Bool(small_vec) => Box::new(small_vec[0]),
+                ControlValue::Byte(small_vec) => Box::new(small_vec[0]),
+                ControlValue::Int32(small_vec) => Box::new(small_vec[0]),
+                ControlValue::Int64(small_vec) => Box::new(small_vec[0]),
+                ControlValue::Float(small_vec) => Box::new(small_vec[0]),
+                ControlValue::String(str) => Box::new(str),
+                ControlValue::Rectangle(small_vec) => Box::new(small_vec[0]),
+                ControlValue::Size(small_vec) => Box::new(small_vec[0]),
+            };
+            write!(f, "{} ({:#?})", name, value)
+        } else {
+            write!(f, "{}", name)
+        }
+    }
 }
 
 macro_rules! impl_control_value {

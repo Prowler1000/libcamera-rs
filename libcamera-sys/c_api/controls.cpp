@@ -120,4 +120,67 @@ void libcamera_control_value_set(libcamera_control_value_t *val, enum libcamera_
     memcpy(storage.data(), data, storage.size());
 }
 
+const libcamera_control_info_t *libcamera_control_info_map_get(const libcamera_control_info_map_t *map, __uint32_t key)
+{
+    const libcamera_control_info_t *info;
+    if (map->count(key) > 0) {
+        // info = libcamera_control_info_create();
+        info = &map->at(key);
+    } else {
+        info = nullptr;
+    }
+    return info;
+}
+
+libcamera_control_info_t *libcamera_control_info_create()
+{
+    return new libcamera::ControlInfo();
+}
+
+void libcamera_control_info_destroy(libcamera_control_info_t *val)
+{
+    delete val;
+}
+
+const libcamera_control_value_t *libcamera_control_info_min(const libcamera_control_info_t *val)
+{
+    libcamera_control_value_t *value = libcamera_control_value_create();
+    *value = val->min();
+    return value;
+}
+const libcamera_control_value_t *libcamera_control_info_max(const libcamera_control_info_t *val)
+{
+    libcamera_control_value_t *value = libcamera_control_value_create();
+    try {
+        *value = val->max();
+    } catch (const std::exception &e) {
+        fprintf(stderr, "Exception in libcamera_control_info_max: %s\n", e.what());
+        delete value;
+        return nullptr;
+    } catch (...) {
+        fprintf(stderr, "Unknown exception in libcamera_control_info_max\n");
+        delete value;
+        return nullptr;
+    }
+    return value;
+}
+const libcamera_control_value_t *libcamera_control_info_def(const libcamera_control_info_t *val)
+{
+    libcamera_control_value_t *value = libcamera_control_value_create();
+    *value = val->def();
+    return value;
+}
+libcamera_control_value_t *libcamera_control_info_values(const libcamera_control_info_t *val, size_t *num_values)
+{
+    const std::vector<libcamera::ControlValue> values = val->values();
+    libcamera_control_value_t *array = (libcamera_control_value_t *)malloc(sizeof(libcamera_control_value_t)*values.size());
+    if (array != nullptr) {
+        *num_values = values.size();
+        size_t i;
+        for (i = 0; i < values.size(); i++) {
+            array[i] = values[i];
+        }
+    }
+    return array;
+}
 }

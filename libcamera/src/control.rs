@@ -1,5 +1,9 @@
-use std::{marker::PhantomData, ptr::NonNull};
+use std::{
+    marker::PhantomData,
+    ptr::{addr_of_mut, null, NonNull},
+};
 
+use libc::free;
 use libcamera_sys::*;
 use thiserror::Error;
 
@@ -44,12 +48,93 @@ impl<T: ControlEntry> DynControlEntry for T {
 }
 
 #[repr(transparent)]
+pub struct ControlInfo(libcamera_control_info_t);
+
+impl ControlInfo {
+    pub(crate) unsafe fn from_ptr<'a>(ptr: NonNull<libcamera_control_info_t>) -> &'a mut Self {
+        // Safety: we can cast it because of `#[repr(transparent)]`
+        &mut *(ptr.as_ptr() as *mut Self)
+    }
+    pub(crate) fn ptr(&self) -> *const libcamera_control_info_t {
+        // Safety: we can cast it because of `#[repr(transparent)]`
+        &self.0 as *const libcamera_control_info_t
+    }
+
+    pub fn min(&self) -> Result<ControlValue, ControlValueError> {
+        let value_ptr = unsafe { libcamera_control_info_min(self.ptr()) };
+        let tmp = unsafe { ControlValue::read(NonNull::new(value_ptr as _).unwrap()) };
+        unsafe {
+            libcamera_control_value_destroy(value_ptr as _);
+        }
+        tmp
+    }
+    pub fn max(&self) -> Result<ControlValue, ControlValueError> {
+        let value_ptr = unsafe { libcamera_control_info_max(self.ptr()) };
+        let tmp = unsafe { ControlValue::read(NonNull::new(value_ptr as _).unwrap()) };
+        unsafe {
+            libcamera_control_value_destroy(value_ptr as _);
+        }
+        tmp
+    }
+    pub fn def(&self) -> Result<ControlValue, ControlValueError> {
+        let value_ptr = unsafe { libcamera_control_info_def(self.ptr()) };
+        let tmp = unsafe { ControlValue::read(NonNull::new(value_ptr as _).unwrap()) };
+        unsafe {
+            libcamera_control_value_destroy(value_ptr as _);
+        }
+        tmp
+    }
+    pub fn values(&self) -> Result<Vec<ControlValue>, ControlValueError> {
+        let mut size = 0;
+        let values_ptr = unsafe {
+            let ptr_to_array = libcamera_control_info_values(self.ptr(), addr_of_mut!(size));
+            std::slice::from_raw_parts_mut(ptr_to_array as *mut _, size)
+        };
+        let values = values_ptr
+            .iter_mut()
+            .map(|value| -> Result<ControlValue, ControlValueError> {
+                unsafe { ControlValue::read(NonNull::new(&mut *value as *mut _).unwrap()) }
+            })
+            .collect::<Result<Vec<_>, _>>();
+        unsafe {
+            free(values_ptr.as_mut_ptr() as *mut _);
+        }
+        values
+    }
+}
+
+impl std::fmt::Debug for ControlInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ControlInfo")
+            .field("min", &self.min())
+            .field("max", &self.max())
+            .field("def", &self.def())
+            .field("values", &self.values())
+            .finish()
+    }
+}
+
+#[repr(transparent)]
 pub struct ControlInfoMap(libcamera_control_info_map_t);
 
 impl ControlInfoMap {
     pub(crate) unsafe fn from_ptr<'a>(ptr: NonNull<libcamera_control_info_map_t>) -> &'a mut Self {
         // Safety: we can cast it because of `#[repr(transparent)]`
         &mut *(ptr.as_ptr() as *mut Self)
+    }
+
+    pub(crate) fn ptr(&self) -> *const libcamera_control_info_map_t {
+        // Safety: we can cast it because of `#[repr(transparent)]`
+        &self.0 as *const libcamera_control_info_map_t
+    }
+
+    pub fn get(&self, control: u32) -> Option<&ControlInfo> {
+        let info_ptr = unsafe { libcamera_control_info_map_get(self.ptr(), control) };
+        if info_ptr.is_null() {
+            None
+        } else {
+            unsafe { Some(ControlInfo::from_ptr(NonNull::new_unchecked(info_ptr as *mut _))) }
+        }
     }
 }
 

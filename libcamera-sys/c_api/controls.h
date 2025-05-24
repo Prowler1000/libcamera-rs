@@ -17,6 +17,7 @@ typedef libcamera::ControlValue libcamera_control_value_t;
 typedef libcamera::ControlList libcamera_control_list_t;
 typedef struct libcamera_control_list_iter libcamera_control_list_iter_t;
 typedef libcamera::ControlInfoMap libcamera_control_info_map_t;
+typedef libcamera::ControlInfo libcamera_control_info_t;
 
 extern "C" {
 #else
@@ -24,6 +25,7 @@ typedef struct libcamera_control_value libcamera_control_value_t;
 typedef struct libcamera_control_list libcamera_control_list_t;
 typedef struct libcamera_control_list_iter libcamera_control_list_iter_t;
 typedef struct libcamera_control_info_map libcamera_control_info_map_t;
+typedef struct libcamera_control_info libcamera_control_info_t;
 #endif
 
 enum libcamera_control_id { libcamera_control_id_DUMMY };
@@ -75,6 +77,17 @@ bool libcamera_control_value_is_array(const libcamera_control_value_t *val);
 size_t libcamera_control_value_num_elements(const libcamera_control_value_t *val);
 const void *libcamera_control_value_get(const libcamera_control_value_t *val);
 void libcamera_control_value_set(libcamera_control_value_t *val, enum libcamera_control_type type, const void *data, bool is_array, size_t num_elements);
+
+// --- libcamera_control_info_map_t ---
+const libcamera_control_info_t *libcamera_control_info_map_get(const libcamera_control_info_map_t *map, __uint32_t key);
+
+// --- libcamera_control_info_t ---
+libcamera_control_info_t *libcamera_control_info_create();
+void libcamera_control_info_destroy(libcamera_control_info_t *val);
+const libcamera_control_value_t *libcamera_control_info_min(const libcamera_control_info_t *val);
+const libcamera_control_value_t *libcamera_control_info_max(const libcamera_control_info_t *val);
+const libcamera_control_value_t *libcamera_control_info_def(const libcamera_control_info_t *val);
+libcamera_control_value_t *libcamera_control_info_values(const libcamera_control_info_t *val, size_t *num_values);
 
 #ifdef __cplusplus
 }
