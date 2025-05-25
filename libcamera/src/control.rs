@@ -48,6 +48,7 @@ impl<T: ControlEntry> DynControlEntry for T {
 }
 
 #[repr(transparent)]
+#[derive(Clone)]
 pub struct ControlInfo(libcamera_control_info_t);
 
 impl ControlInfo {
@@ -58,6 +59,15 @@ impl ControlInfo {
     pub(crate) fn ptr(&self) -> *const libcamera_control_info_t {
         // Safety: we can cast it because of `#[repr(transparent)]`
         &self.0 as *const libcamera_control_info_t
+    }
+
+    /// # Safety
+    /// Returns an owned ControlInfo which, internally, is just a pointer to a C object.
+    /// There is no guarantee that libcamera won't modify, move, or invalidate the value
+    /// behind said pointer. Since all methods on this object use the pointer to call
+    /// C functions, they may end up being given an invalid pointer
+    pub unsafe fn get_owned(&self) -> ControlInfo {
+        ControlInfo(self.0)
     }
 
     pub fn min(&self) -> Result<ControlValue, ControlValueError> {
@@ -174,6 +184,13 @@ impl ControlList {
         Ok(C::try_from(val)?)
     }
 
+    pub fn get_dyn(&self, id: ControlId) -> Result<ControlValue, ControlError> {
+        let val_ptr = NonNull::new(unsafe { libcamera_control_list_get(self.ptr().cast_mut(), id as _).cast_mut() })
+            .ok_or(ControlError::NotFound(id.into()))?;
+        let val = unsafe { ControlValue::read(val_ptr) }?;
+        Ok(val)
+    }
+
     /// Sets control value.
     ///
     /// This can fail if control is not supported by the camera, but due to libcamera API limitations an error will not
@@ -185,6 +202,19 @@ impl ControlList {
             let val_ptr = NonNull::new(libcamera_control_value_create()).unwrap();
             ctrl_val.write(val_ptr);
             libcamera_control_list_set(self.ptr().cast_mut(), C::ID as _, val_ptr.as_ptr());
+            libcamera_control_value_destroy(val_ptr.as_ptr());
+        }
+
+        Ok(())
+    }
+
+    pub fn set_dynamic(&mut self, val: &dyn DynControlEntry) -> Result<(), ControlError> {
+        let ctrl_val = val.value();
+
+        unsafe {
+            let val_ptr = NonNull::new_unchecked(libcamera_control_value_create());
+            ctrl_val.write(val_ptr);
+            libcamera_control_list_set(self.ptr().cast_mut(), val.id(), val_ptr.as_ptr());
             libcamera_control_value_destroy(val_ptr.as_ptr());
         }
 
